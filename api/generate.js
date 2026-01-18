@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
   try {
-    const API_KEY = process.env.GEMINI_API_KEY;
+    const API_KEY = process.env.GEMINI_API_KEY; // hidden in Vercel
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
@@ -26,15 +26,21 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    // 🔹 Extract text safely
+    // 🔹 Robust extraction
     let aiText = "";
-    if (data.candidates && data.candidates.length > 0) {
-      const content = data.candidates[0].content;
-      if (Array.isArray(content)) {
-        // Multiple parts
-        aiText = content.map(c => c.parts?.[0]?.text || "").join("\n");
-      } else {
-        aiText = content.parts?.[0]?.text || "";
+
+    if (data?.candidates?.length > 0) {
+      const candidate = data.candidates[0];
+
+      if (Array.isArray(candidate.content)) {
+        // Multiple content objects
+        aiText = candidate.content.map(c => {
+          if (Array.isArray(c.parts)) return c.parts.map(p => p.text || "").join("\n");
+          return "";
+        }).join("\n");
+      } else if (candidate.content?.parts?.length > 0) {
+        // Single content object
+        aiText = candidate.content.parts.map(p => p.text || "").join("\n");
       }
     }
 
