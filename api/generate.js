@@ -1,25 +1,18 @@
 // /api/generate.js
 export default async function handler(req, res) {
-  // Allow cross-origin requests (from any domain)
-  res.setHeader("Access-Control-Allow-Origin", "*"); // or restrict to your blog domain
+  // CORS headers for Blogger
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  // Handle preflight OPTIONS request
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
 
-  // Only allow POST requests
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
   try {
-    // Use your Gemini API key from Vercel environment variable
     const API_KEY = process.env.GEMINI_API_KEY;
 
     const response = await fetch(
@@ -32,9 +25,23 @@ export default async function handler(req, res) {
     );
 
     const data = await response.json();
-    const aiText = data.candidates?.[0]?.content?.[0]?.text || data.candidates?.[0]?.content;
+
+    // 🔹 Extract text safely
+    let aiText = "";
+    if (data.candidates && data.candidates.length > 0) {
+      const content = data.candidates[0].content;
+      if (Array.isArray(content)) {
+        // Multiple parts
+        aiText = content.map(c => c.parts?.[0]?.text || "").join("\n");
+      } else {
+        aiText = content.parts?.[0]?.text || "";
+      }
+    }
+
+    if (!aiText) throw new Error("No result returned from AI");
 
     res.status(200).json({ result: aiText });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
